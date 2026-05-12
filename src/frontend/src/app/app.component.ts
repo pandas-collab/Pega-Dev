@@ -53,6 +53,11 @@ import { filter } from 'rxjs/operators';
     .content-wrapper {
       min-height: 100%;
     }
+
+    .app-container:not(.authenticated) .content-wrapper {
+      padding: 0;
+      background: white;
+    }
   `]
 })
 export class AppComponent implements OnInit {
@@ -87,6 +92,10 @@ export class AppComponent implements OnInit {
   }
 
   toggleSidenav() {
+    this.sidenavOpen = !this.sidenavOpen;
+  }
+
+  onMenuToggle() {
     this.sidenavOpen = !this.sidenavOpen;
   }
 
