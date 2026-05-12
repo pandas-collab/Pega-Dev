@@ -2,16 +2,26 @@
   "name": "pegasus-claims-platform",
   "version": "1.0.0",
   "description": "Insurance Claims Processing Platform - Angular Frontend",
+  "author": "Pegasus Insurance Platform",
+  "license": "MIT",
+  "private": true,
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "ng serve --host 0.0.0.0 --port 4200",
+    "start:prod": "ng serve --configuration production",
     "build": "ng build",
+    "build:prod": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve": "ng serve --host 0.0.0.0 --port 4200",
-    "build:prod": "ng build --configuration production"
+    "test:ci": "ng test --watch=false --browsers=ChromeHeadless --code-coverage",
+    "lint": "ng lint",
+    "e2e": "ng e2e",
+    "analyze": "ng build --configuration production --stats-json && npx webpack-bundle-analyzer dist/pegasus-platform/stats.json",
+    "format": "prettier --write \"src/**/*.{ts,html,scss,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss,json}\"",
+    "prepare": "husky install",
+    "serve": "ng serve --host 0.0.0.0 --port 4200"
   },
-  "private": true,
   "dependencies": {
     "@angular/animations": "^17.0.0",
     "@angular/cdk": "^17.0.0",
@@ -23,12 +33,24 @@
     "@angular/platform-browser": "^17.0.0",
     "@angular/platform-browser-dynamic": "^17.0.0",
     "@angular/router": "^17.0.0",
+    "@angular/service-worker": "^17.0.0",
     "@auth0/angular-jwt": "^5.2.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.6.0",
     "zone.js": "~0.14.0",
     "material-icons": "^1.13.12",
-    "date-fns": "^3.0.0"
+    "date-fns": "^3.0.0",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "@ngrx/store": "^17.0.0",
+    "@ngrx/effects": "^17.0.0",
+    "@ngrx/store-devtools": "^17.0.0",
+    "@ngrx/router-store": "^17.0.0",
+    "chart.js": "^4.4.0",
+    "ng2-charts": "^5.0.4",
+    "ngx-material-file-input": "^3.0.0",
+    "ngx-toastr": "^18.0.0",
+    "file-saver": "^2.0.5"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^17.0.0",
@@ -36,21 +58,66 @@
     "@angular/compiler-cli": "^17.0.0",
     "@types/jasmine": "~5.1.0",
     "@types/node": "^18.18.0",
+    "@types/lodash": "^4.14.202",
+    "@types/file-saver": "^2.0.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "husky": "^8.0.3",
     "jasmine-core": "~5.1.0",
     "karma": "~6.4.0",
     "karma-chrome-headless": "~3.1.0",
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
-    "typescript": "~5.2.0"
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.0.0",
+    "protractor": "~7.0.0",
+    "typescript": "~5.2.0",
+    "webpack-bundle-analyzer": "^4.9.1"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "Firefox ESR",
+    "not dead",
+    "not IE 9-11"
+  ],
+  "lint-staged": {
+    "src/**/*.{ts,html,scss,json}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test:ci"
+    }
   },
   "keywords": [
     "insurance",
     "claims",
     "angular",
     "material",
-    "workflow"
+    "workflow",
+    "platform",
+    "policy-management",
+    "claims-processing",
+    "enterprise"
   ],
-  "author": "Pegasus Insurance Platform",
-  "license": "MIT"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pegasus-insurance/platform-frontend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/pegasus-insurance/platform-frontend/issues"
+  },
+  "homepage": "https://pegasus-insurance.github.io/platform-frontend"
 }

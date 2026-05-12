@@ -1,6 +1,8 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { Router, NavigationEnd } from '@angular/router';
+import { Title, Meta } from '@angular/platform-browser';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
@@ -21,8 +23,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snackbar';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
-import { Observable, BehaviorSubject, Subject, interval } from 'rxjs';
-import { takeUntil, catchError, tap, switchMap } from 'rxjs/operators';
+import { Observable, BehaviorSubject, Subject, interval, filter, takeUntil, catchError, tap, switchMap } from 'rxjs';
 
 // Claims Processing Models
 export interface Claim {
@@ -214,7 +215,10 @@ export class ClaimsService {
   }
 }
 
-// Main Application Component
+/**
+ * Main application component for the Pegasus Insurance Platform
+ * Handles global app initialization, routing, and core functionality
+ */
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -247,426 +251,595 @@ export class ClaimsService {
     ClaimsService
   ],
   template: `
-    <!-- Main Application Layout -->
-    <mat-toolbar color="primary" class="main-toolbar">
-      <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
-        <mat-icon>menu</mat-icon>
-      </button>
-      <span class="app-title">Pegasus Claims Processing</span>
-      <span class="spacer"></span>
+    <div class="pegasus-app" [class.loading]="isLoading">
+      <!-- Application Header -->
+      <header class="app-header" *ngIf="!isLoading">
+        <nav class="nav-container">
+          <div class="nav-brand">
+            <img src="assets/images/pegasus-logo.png" alt="Pegasus Insurance" class="brand-logo">
+            <span class="brand-text">Pegasus Platform</span>
+          </div>
 
-      <!-- Claims Statistics -->
-      <div class="stats-chips">
-        <mat-chip-listbox>
-          <mat-chip color="primary" [matBadge]="getClaimsByStatus('submitted').length">
-            Submitted
-          </mat-chip>
-          <mat-chip color="accent" [matBadge]="getClaimsByStatus('underReview').length">
-            Under Review
-          </mat-chip>
-          <mat-chip color="warn" [matBadge]="getClaimsByStatus('paymentProcessing').length">
-            Payment Processing
-          </mat-chip>
-        </mat-chip-listbox>
+          <div class="nav-menu" *ngIf="isAuthenticated">
+            <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">
+              <mat-icon>dashboard</mat-icon>
+              Dashboard
+            </a>
+            <a routerLink="/policies" routerLinkActive="active" class="nav-link">
+              <mat-icon>policy</mat-icon>
+              Policies
+            </a>
+            <a routerLink="/claims" routerLinkActive="active" class="nav-link">
+              <mat-icon>assignment</mat-icon>
+              Claims
+            </a>
+            <a routerLink="/documents" routerLinkActive="active" class="nav-link">
+              <mat-icon>folder</mat-icon>
+              Documents
+            </a>
+            <a routerLink="/reports" routerLinkActive="active" class="nav-link">
+              <mat-icon>analytics</mat-icon>
+              Reports
+            </a>
+          </div>
+
+          <div class="nav-actions" *ngIf="isAuthenticated">
+            <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
+              <mat-icon>account_circle</mat-icon>
+            </button>
+            <mat-menu #userMenu="matMenu">
+              <div class="user-info">
+                <span class="user-name">{{ currentUser?.name }}</span>
+                <span class="user-role">{{ currentUser?.role }}</span>
+              </div>
+              <mat-divider></mat-divider>
+              <button mat-menu-item routerLink="/profile">
+                <mat-icon>person</mat-icon>
+                Profile
+              </button>
+              <button mat-menu-item routerLink="/settings">
+                <mat-icon>settings</mat-icon>
+                Settings
+              </button>
+              <mat-divider></mat-divider>
+              <button mat-menu-item (click)="logout()" class="logout-item">
+                <mat-icon>logout</mat-icon>
+                Logout
+              </button>
+            </mat-menu>
+          </div>
+        </nav>
+      </header>
+
+      <!-- Legacy Claims Processing Interface -->
+      <div *ngIf="currentView && !isLoading" class="legacy-claims-interface">
+        <!-- Main Application Layout -->
+        <mat-toolbar color="primary" class="main-toolbar">
+          <button mat-icon-button (click)="sidenav.toggle()" class="menu-button">
+            <mat-icon>menu</mat-icon>
+          </button>
+          <span class="app-title">Pegasus Claims Processing</span>
+          <span class="spacer"></span>
+
+          <!-- Claims Statistics -->
+          <div class="stats-chips">
+            <mat-chip-listbox>
+              <mat-chip color="primary" [matBadge]="getClaimsByStatus('submitted').length">
+                Submitted
+              </mat-chip>
+              <mat-chip color="accent" [matBadge]="getClaimsByStatus('underReview').length">
+                Under Review
+              </mat-chip>
+              <mat-chip color="warn" [matBadge]="getClaimsByStatus('paymentProcessing').length">
+                Payment Processing
+              </mat-chip>
+            </mat-chip-listbox>
+          </div>
+
+          <button mat-icon-button>
+            <mat-icon>notifications</mat-icon>
+          </button>
+        </mat-toolbar>
+
+        <mat-sidenav-container class="sidenav-container">
+          <mat-sidenav #sidenav mode="side" opened class="sidenav">
+            <mat-nav-list>
+              <a mat-list-item (click)="currentView = 'dashboard'" [class.active]="currentView === 'dashboard'">
+                <mat-icon matListItemIcon>dashboard</mat-icon>
+                <span matListItemTitle>Dashboard</span>
+              </a>
+              <a mat-list-item (click)="currentView = 'claims'" [class.active]="currentView === 'claims'">
+                <mat-icon matListItemIcon>assignment</mat-icon>
+                <span matListItemTitle>Claims Management</span>
+              </a>
+              <a mat-list-item (click)="currentView = 'workflow'" [class.active]="currentView === 'workflow'">
+                <mat-icon matListItemIcon>alt_route</mat-icon>
+                <span matListItemTitle>Workflow Engine</span>
+              </a>
+              <a mat-list-item (click)="currentView = 'approvals'" [class.active]="currentView === 'approvals'">
+                <mat-icon matListItemIcon>thumb_up</mat-icon>
+                <span matListItemTitle>Approvals</span>
+              </a>
+              <a mat-list-item (click)="currentView = 'payments'" [class.active]="currentView === 'payments'">
+                <mat-icon matListItemIcon>payment</mat-icon>
+                <span matListItemTitle>Payment Processing</span>
+              </a>
+            </mat-nav-list>
+          </mat-sidenav>
+
+          <mat-sidenav-content class="main-content">
+            <!-- Dashboard View -->
+            <div *ngIf="currentView === 'dashboard'" class="view-container">
+              <h2>Claims Processing Dashboard</h2>
+
+              <div class="dashboard-cards">
+                <!-- Dashboard content continues here -->
+              </div>
+            </div>
+          </mat-sidenav-content>
+        </mat-sidenav-container>
       </div>
 
-      <button mat-icon-button>
-        <mat-icon>notifications</mat-icon>
-      </button>
-    </mat-toolbar>
+      <!-- Main Content Area -->
+      <main class="app-main" [class.with-header]="isAuthenticated" *ngIf="!currentView">
+        <!-- Loading Indicator -->
+        <div class="loading-overlay" *ngIf="isLoading">
+          <mat-spinner diameter="60" color="primary"></mat-spinner>
+          <p class="loading-text">{{ loadingMessage }}</p>
+        </div>
 
-    <mat-sidenav-container class="sidenav-container">
-      <mat-sidenav #sidenav mode="side" opened class="sidenav">
-        <mat-nav-list>
-          <a mat-list-item (click)="currentView = 'dashboard'" [class.active]="currentView === 'dashboard'">
-            <mat-icon matListItemIcon>dashboard</mat-icon>
-            <span matListItemTitle>Dashboard</span>
-          </a>
-          <a mat-list-item (click)="currentView = 'claims'" [class.active]="currentView === 'claims'">
-            <mat-icon matListItemIcon>assignment</mat-icon>
-            <span matListItemTitle>Claims Management</span>
-          </a>
-          <a mat-list-item (click)="currentView = 'workflow'" [class.active]="currentView === 'workflow'">
-            <mat-icon matListItemIcon>alt_route</mat-icon>
-            <span matListItemTitle>Workflow Engine</span>
-          </a>
-          <a mat-list-item (click)="currentView = 'approvals'" [class.active]="currentView === 'approvals'">
-            <mat-icon matListItemIcon>thumb_up</mat-icon>
-            <span matListItemTitle>Approvals</span>
-          </a>
-          <a mat-list-item (click)="currentView = 'payments'" [class.active]="currentView === 'payments'">
-            <mat-icon matListItemIcon>payment</mat-icon>
-            <span matListItemTitle>Payment Processing</span>
-          </a>
-        </mat-nav-list>
-      </mat-sidenav>
+        <!-- Router Outlet for Page Content -->
+        <router-outlet *ngIf="!isLoading"></router-outlet>
 
-      <mat-sidenav-content class="main-content">
-        <!-- Dashboard View -->
-        <div *ngIf="currentView === 'dashboard'" class="view-container">
-          <h2>Claims Processing Dashboard</h2>
-
-          <div class="dashboard-cards">
-            <mat-card class="stat-card">
-              <mat-card-header>
-                <mat-card-title>Total Claims</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <div class="stat-number">{{claims.length}}</div>
-              </mat-card-content>
-            </mat-card>
-
-            <mat-card class="stat-card">
-              <mat-card-header>
-                <mat-card-title>Pending Approval</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <div class="stat-number">{{getClaimsByStatus('underReview').length}}</div>
-              </mat-card-content>
-            </mat-card>
-
-            <mat-card class="stat-card">
-              <mat-card-header>
-                <mat-card-title>Processing Payments</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <div class="stat-number">{{getClaimsByStatus('paymentProcessing').length}}</div>
-              </mat-card-content>
-            </mat-card>
-
-            <mat-card class="stat-card">
-              <mat-card-header>
-                <mat-card-title>Total Value</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                <div class="stat-number">\${{getTotalClaimsValue() | number:'1.0-2'}}</div>
-              </mat-card-content>
-            </mat-card>
-          </div>
-
-          <!-- Recent Claims -->
-          <mat-card class="recent-claims">
-            <mat-card-header>
-              <mat-card-title>Recent Claims Activity</mat-card-title>
-            </mat-card-header>
+        <!-- Global Error Messages -->
+        <div class="global-error" *ngIf="globalError" [@slideIn]>
+          <mat-card class="error-card">
             <mat-card-content>
-              <mat-list>
-                <mat-list-item *ngFor="let claim of getRecentClaims()">
-                  <mat-icon matListItemIcon [class]="'status-' + claim.status">assignment</mat-icon>
-                  <div matListItemTitle>{{claim.claimNumber}} - {{claim.customerName}}</div>
-                  <div matListItemLine>\${{claim.estimatedAmount | number:'1.0-2'}} - {{claim.status | titlecase}}</div>
-                  <button mat-icon-button (click)="selectClaim(claim)">
-                    <mat-icon>arrow_forward</mat-icon>
+              <div class="error-content">
+                <mat-icon class="error-icon">error</mat-icon>
+                <div class="error-details">
+                  <h3>Something went wrong</h3>
+                  <p>{{ globalError.message }}</p>
+                  <button mat-raised-button color="primary" (click)="dismissError()">
+                    Dismiss
                   </button>
-                </mat-list-item>
-              </mat-list>
+                </div>
+              </div>
             </mat-card-content>
           </mat-card>
         </div>
+      </main>
 
-        <!-- Claims Management View -->
-        <div *ngIf="currentView === 'claims'" class="view-container">
-          <div class="view-header">
-            <h2>Claims Management</h2>
-            <button mat-raised-button color="primary" (click)="openCreateClaimDialog()">
-              <mat-icon>add</mat-icon>
-              New Claim
-            </button>
+      <!-- Footer -->
+      <footer class="app-footer" *ngIf="!isLoading">
+        <div class="footer-content">
+          <span class="footer-text">
+             {{ currentYear }} Pegasus Insurance Platform v{{ appVersion }}
+          </span>
+          <div class="footer-links">
+            <a href="/privacy" class="footer-link">Privacy Policy</a>
+            <a href="/terms" class="footer-link">Terms of Service</a>
+            <a href="/support" class="footer-link">Support</a>
           </div>
-
-          <!-- Claims Table -->
-          <mat-card class="claims-table-card">
-            <mat-card-content>
-              <mat-table [dataSource]="claims" class="claims-table" matSort>
-                <ng-container matColumnDef="claimNumber">
-                  <mat-header-cell *matHeaderCellDef mat-sort-header>Claim Number</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">{{claim.claimNumber}}</mat-cell>
-                </ng-container>
-
-                <ng-container matColumnDef="customerName">
-                  <mat-header-cell *matHeaderCellDef mat-sort-header>Customer</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">{{claim.customerName}}</mat-cell>
-                </ng-container>
-
-                <ng-container matColumnDef="status">
-                  <mat-header-cell *matHeaderCellDef mat-sort-header>Status</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">
-                    <mat-chip [class]="'status-chip status-' + claim.status">
-                      {{claim.status | titlecase}}
-                    </mat-chip>
-                  </mat-cell>
-                </ng-container>
-
-                <ng-container matColumnDef="estimatedAmount">
-                  <mat-header-cell *matHeaderCellDef mat-sort-header>Amount</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">\${{claim.estimatedAmount | number:'1.0-2'}}</mat-cell>
-                </ng-container>
-
-                <ng-container matColumnDef="adjusterName">
-                  <mat-header-cell *matHeaderCellDef>Adjuster</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">{{claim.adjusterName || 'Unassigned'}}</mat-cell>
-                </ng-container>
-
-                <ng-container matColumnDef="actions">
-                  <mat-header-cell *matHeaderCellDef>Actions</mat-header-cell>
-                  <mat-cell *matCellDef="let claim">
-                    <button mat-icon-button (click)="selectClaim(claim)" matTooltip="View Details">
-                      <mat-icon>visibility</mat-icon>
-                    </button>
-                    <button mat-icon-button (click)="editClaim(claim)" matTooltip="Edit Claim">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button
-                            *ngIf="claim.status === 'underReview'"
-                            (click)="approveClaim(claim)"
-                            matTooltip="Approve Claim">
-                      <mat-icon>check_circle</mat-icon>
-                    </button>
-                  </mat-cell>
-                </ng-container>
-
-                <mat-header-row *matHeaderRowDef="['claimNumber', 'customerName', 'status', 'estimatedAmount', 'adjusterName', 'actions']"></mat-header-row>
-                <mat-row *matRowDef="let row; columns: ['claimNumber', 'customerName', 'status', 'estimatedAmount', 'adjusterName', 'actions']"></mat-row>
-              </mat-table>
-            </mat-card-content>
-          </mat-card>
         </div>
-
-        <!-- Workflow Engine View -->
-        <div *ngIf="currentView === 'workflow'" class="view-container">
-          <h2>Workflow Engine</h2>
-
-          <mat-card class="workflow-card">
-            <mat-card-header>
-              <mat-card-title>Claims Processing Workflow</mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
-              <div class="workflow-diagram">
-                <div class="workflow-step" [class.active]="true">
-                  <mat-icon>assignment</mat-icon>
-                  <span>Submitted</span>
-                </div>
-                <div class="workflow-arrow">-></div>
-                <div class="workflow-step">
-                  <mat-icon>search</mat-icon>
-                  <span>Under Review</span>
-                </div>
-                <div class="workflow-arrow">-></div>
-                <div class="workflow-step">
-                  <mat-icon>check_circle</mat-icon>
-                  <span>Approved</span>
-                </div>
-                <div class="workflow-arrow">-></div>
-                <div class="workflow-step">
-                  <mat-icon>payment</mat-icon>
-                  <span>Payment Processing</span>
-                </div>
-                <div class="workflow-arrow">-></div>
-                <div class="workflow-step">
-                  <mat-icon>done_all</mat-icon>
-                  <span>Closed</span>
-                </div>
-              </div>
-
-              <div class="workflow-stats">
-                <div class="workflow-stat" *ngFor="let status of claimStatuses">
-                  <div class="stat-label">{{status | titlecase}}</div>
-                  <div class="stat-value">{{getClaimsByStatus(status).length}}</div>
-                </div>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-
-        <!-- Selected Claim Details -->
-        <div *ngIf="selectedClaim" class="claim-details">
-          <mat-card>
-            <mat-card-header>
-              <mat-card-title>Claim Details - {{selectedClaim.claimNumber}}</mat-card-title>
-              <button mat-icon-button (click)="selectedClaim = null">
-                <mat-icon>close</mat-icon>
-              </button>
-            </mat-card-header>
-            <mat-card-content>
-              <div class="claim-info">
-                <p><strong>Customer:</strong> {{selectedClaim.customerName}}</p>
-                <p><strong>Policy:</strong> {{selectedClaim.policyNumber}}</p>
-                <p><strong>Status:</strong> {{selectedClaim.status | titlecase}}</p>
-                <p><strong>Amount:</strong> \${{selectedClaim.estimatedAmount | number:'1.0-2'}}</p>
-                <p><strong>Description:</strong> {{selectedClaim.description}}</p>
-                <p><strong>Adjuster:</strong> {{selectedClaim.adjusterName || 'Unassigned'}}</p>
-              </div>
-
-              <div class="claim-actions">
-                <button mat-raised-button
-                        color="primary"
-                        *ngIf="selectedClaim.status === 'underReview'"
-                        (click)="approveClaim(selectedClaim)">
-                  Approve Claim
-                </button>
-                <button mat-raised-button
-                        color="warn"
-                        *ngIf="selectedClaim.status === 'underReview'"
-                        (click)="denyClaim(selectedClaim)">
-                  Deny Claim
-                </button>
-                <button mat-raised-button
-                        color="accent"
-                        *ngIf="selectedClaim.status === 'approved'"
-                        (click)="processPayment(selectedClaim)">
-                  Process Payment
-                </button>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-      </mat-sidenav-content>
-    </mat-sidenav-container>
+      </footer>
+    </div>
   `,
   styles: [`
-    .main-toolbar {
+    .pegasus-app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: #fafafa;
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       position: sticky;
       top: 0;
       z-index: 1000;
     }
 
-    .spacer {
-      flex: 1 1 auto;
+    .nav-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 64px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: white;
+    }
+
+    .brand-logo {
+      height: 40px;
+      width: auto;
+    }
+
+    .brand-text {
+      font-size: 20px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-menu {
+      display: flex;
+      gap: 8px;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      color: rgba(255,255,255,0.87);
+      text-decoration: none;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background-color: rgba(255,255,255,0.1);
+      color: white;
+    }
+
+    .nav-link.active {
+      background-color: rgba(255,255,255,0.15);
+      color: white;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+    }
+
+    .user-menu-trigger {
+      color: white;
+    }
+
+    .user-info {
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .user-name {
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .user-role {
+      font-size: 12px;
+      color: rgba(0,0,0,0.6);
+    }
+
+    .logout-item {
+      color: #d32f2f;
+    }
+
+    .app-main {
+      flex: 1;
+      position: relative;
+    }
+
+    .app-main.with-header {
+      padding-top: 0;
+    }
+
+    .legacy-claims-interface {
+      flex: 1;
+    }
+
+    .main-toolbar {
+      position: relative;
+      z-index: 999;
     }
 
     .sidenav-container {
-      height: calc(100vh - 64px);
+      height: calc(100vh - 128px);
     }
 
     .sidenav {
       width: 250px;
     }
 
-    .main-content {
-      padding: 20px;
-    }
-
     .view-container {
-      max-width: 1200px;
+      padding: 24px;
     }
 
-    .view-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
+    .stats-chips {
+      margin-right: 16px;
     }
 
-    .dashboard-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
+    .spacer {
+      flex: 1;
     }
 
-    .stat-card {
-      text-align: center;
-    }
-
-    .stat-number {
-      font-size: 2.5rem;
-      font-weight: bold;
-      color: #1976d2;
-    }
-
-    .recent-claims {
-      margin-top: 20px;
-    }
-
-    .claims-table-card {
-      margin-top: 20px;
-    }
-
-    .claims-table {
-      width: 100%;
-    }
-
-    .status-chip {
-      color: white;
-      font-weight: bold;
-    }
-
-    .status-submitted {
-      background-color: var(--status-submitted, #2196f3);
-    }
-
-    .status-underReview {
-      background-color: var(--status-review, #ff9800);
-    }
-
-    .status-approved {
-      background-color: var(--status-approved, #4caf50);
-    }
-
-    .status-denied {
-      background-color: var(--status-denied, #f44336);
-    }
-
-    .status-paymentProcessing {
-      background-color: var(--status-payment, #9c27b0);
-    }
-
-    .status-closed {
-      background-color: var(--status-closed, #607d8b);
-    }
-
-    .workflow-card {
-      margin: 20px 0;
-    }
-
-    .workflow-diagram {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin: 30px 0;
-      flex-wrap: wrap;
-    }
-
-    .workflow-step {
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255,255,255,0.9);
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 20px;
-      border-radius: 8px;
-      background: #f5f5f5;
-      min-width: 100px;
+      justify-content: center;
+      z-index: 9999;
     }
 
-    .workflow-step.active {
-      background: #e3f2fd;
-      color: #1976d2;
+    .loading-text {
+      margin-top: 16px;
+      font-size: 16px;
+      color: rgba(0,0,0,0.7);
     }
 
-    .workflow-arrow {
-      font-size: 24px;
-      color: #666;
+    .global-error {
+      position: fixed;
+      top: 80px;
+      right: 24px;
+      z-index: 1000;
+      max-width: 400px;
     }
 
-    .workflow-stats {
+    .error-card {
+      background: #ffebee;
+      border-left: 4px solid #d32f2f;
+    }
+
+    .error-content {
       display: flex;
-      justify-content: space-around;
-      margin-top: 30px;
+      align-items: flex-start;
+      gap: 12px;
     }
 
-    .workflow-stat {
-      text-align: center;
+    .error-icon {
+      color: #d32f2f;
+      margin-top: 2px;
     }
 
-    .stat-label {
+    .error-details h3 {
+      margin: 0 0 8px 0;
+      color: #d32f2f;
+      font-size: 16px;
+    }
+
+    .error-details p {
+      margin: 0 0 12px 0;
+      color: rgba(0,0,0,0.7);
       font-size: 14px;
-      color: #666;
     }
 
-    .stat-value {
-      font-size: 24px;
-      font-weight: bold;
+    .app-footer {
+      background-color: #f5f5f5;
+      border-top: 1px solid #e0e0e0;
+      padding: 16px 24px;
+      margin-top: auto;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      color: rgba(0,0,0,0.6);
+      font-size: 14px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-link {
+      color: rgba(0,0,0,0.6);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s ease;
+    }
+
+    .footer-link:hover {
       color: #1976d2;
     }
 
-    .claim-details {
-      position
+    @media (max-width: 768px) {
+      .nav-menu {
+        display: none;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .global-error {
+        left: 16px;
+        right: 16px;
+        top: 16px;
+        max-width: none;
+      }
+    }
+  `],
+  encapsulation: ViewEncapsulation.None
+})
+export class AppComponent implements OnInit, OnDestroy {
+  // Component properties
+  readonly title = 'Pegasus Insurance Platform';
+  readonly appVersion = '1.0.0';
+  readonly currentYear = new Date().getFullYear();
+
+  // State management
+  isLoading = true;
+  isAuthenticated = false;
+  loadingMessage = 'Initializing application...';
+  globalError: { message: string; details?: any } | null = null;
+  currentView: string = 'dashboard';
+
+  // User information
+  currentUser: { name: string; role: string; email: string } | null = null;
+
+  // Claims data
+  claims: Claim[] = [];
+
+  // Subscription management
+  private destroy$ = new Subject<void>();
+
+  constructor(
+    private router: Router,
+    private titleService: Title,
+    private metaService: Meta,
+    private claimsService: ClaimsService,
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
+  ) {
+    this.initializeMetadata();
+  }
+
+  ngOnInit(): void {
+    this.initializeApplication();
+    this.setupRouterTracking();
+    this.loadClaimsData();
+    this.hideInitialLoader();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  /**
+   * Initialize application metadata and SEO tags
+   */
+  private initializeMetadata(): void {
+    this.titleService.setTitle(this.title);
+
+    this.metaService.updateTag({
+      name: 'description',
+      content: 'Comprehensive insurance platform for policy and claims management'
+    });
+
+    this.metaService.updateTag({
+      name: 'keywords',
+      content: 'insurance, policies, claims, management, platform'
+    });
+
+    this.metaService.updateTag({
+      property: 'og:title',
+      content: this.title
+    });
+
+    this.metaService.updateTag({
+      property: 'og:type',
+      content: 'website'
+    });
+  }
+
+  /**
+   * Initialize the application with necessary setup
+   */
+  private initializeApplication(): void {
+    // Simulate authentication check
+    setTimeout(() => {
+      this.isAuthenticated = true;
+      this.currentUser = {
+        name: 'John Administrator',
+        role: 'Claims Manager',
+        email: 'admin@pegasus.com'
+      };
+      this.isLoading = false;
+    }, 2000);
+  }
+
+  /**
+   * Setup router event tracking for navigation
+   */
+  private setupRouterTracking(): void {
+    this.router.events
+      .pipe(
+        filter(event => event instanceof NavigationEnd),
+        takeUntil(this.destroy$)
+      )
+      .subscribe((event: NavigationEnd) => {
+        // Update page title based on route
+        this.updatePageTitle(event.url);
+      });
+  }
+
+  /**
+   * Load claims data from service
+   */
+  private loadClaimsData(): void {
+    this.claimsService.claims$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(claims => {
+        this.claims = claims;
+      });
+  }
+
+  /**
+   * Hide initial application loader
+   */
+  private hideInitialLoader(): void {
+    setTimeout(() => {
+      const loader = document.querySelector('.initial-loader');
+      if (loader) {
+        loader.remove();
+      }
+    }, 1000);
+  }
+
+  /**
+   * Update page title based on current route
+   */
+  private updatePageTitle(url: string): void {
+    let pageTitle = this.title;
+    
+    if (url.includes('/dashboard')) {
+      pageTitle += ' - Dashboard';
+    } else if (url.includes('/claims')) {
+      pageTitle += ' - Claims Management';
+    } else if (url.includes('/policies')) {
+      pageTitle += ' - Policies';
+    }
+    
+    this.titleService.setTitle(pageTitle);
+  }
+
+  /**
+   * Get claims filtered by status
+   */
+  getClaimsByStatus(status: string): Claim[] {
+    return this.claims.filter(claim => claim.status === status);
+  }
+
+  /**
+   * Handle user logout
+   */
+  logout(): void {
+    this.isAuthenticated = false;
+    this.currentUser = null;
+    this.router.navigate(['/login']);
+    this.snackBar.open('Logged out successfully', 'Close', { duration: 3000 });
+  }
+
+  /**
+   * Dismiss global error message
+   */
+  dismissError(): void {
+    this.globalError = null;
+  }
+}
