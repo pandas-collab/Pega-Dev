@@ -89,4 +89,8 @@ export class AppComponent implements OnInit {
   toggleSidenav() {
     this.sidenavOpen = !this.sidenavOpen;
   }
+
+  logout() {
+    this.authService.logout();
+  }
 }
