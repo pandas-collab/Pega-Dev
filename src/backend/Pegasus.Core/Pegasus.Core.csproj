@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Pegasus.Domain/Pegasus.Domain.csproj" />
+    <ProjectReference Include="../Pegasus.Infrastructure/Pegasus.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
